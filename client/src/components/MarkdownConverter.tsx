@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import MarkdownIt from 'markdown-it';
 import { PanelLeftClose, PanelLeftOpen, Smartphone, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useToast } from './ToastProvider';
 import MarkdownEditor from './MarkdownEditor';
 import MarkdownPreview from './MarkdownPreview';
 import ActionButtons from './ActionButtons';
@@ -80,6 +81,7 @@ function MarkdownConverter() {
   const [activeTab, setActiveTab] = useState<MobileTab>('editor');
   const [isEditorCollapsed, setIsEditorCollapsed] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const { showToast } = useToast();
 
   // Initialize markdown-it for HTML generation
   const md = useMemo(() => {
@@ -108,15 +110,16 @@ function MarkdownConverter() {
     setMarkdown('');
   };
 
-  // Enhanced copy function with better error handling
+  // Enhanced copy function with toast notifications
   const handleCopyHtml = useCallback(async () => {
     if (!htmlContent.trim()) {
-      alert('Please add some markdown content first!');
+      showToast('Please add some markdown content first!', 'info');
       return;
     }
 
     try {
       await navigator.clipboard.writeText(htmlContent);
+      showToast('HTML copied to clipboard!', 'success');
     } catch (error) {
       console.error('Failed to copy HTML:', error);
       // Fallback for browsers that don't support clipboard API
@@ -126,13 +129,13 @@ function MarkdownConverter() {
       textArea.select();
       try {
         document.execCommand('copy');
-        alert('HTML copied to clipboard!');
+        showToast('HTML copied to clipboard!', 'success');
       } catch (fallbackError) {
-        alert('Failed to copy HTML. Please try again.');
+        showToast('Failed to copy HTML. Please try again.', 'error');
       }
       document.body.removeChild(textArea);
     }
-  }, [htmlContent]);
+  }, [htmlContent, showToast]);
 
   // Enhanced tab switching with animations
   const handleTabSwitch = useCallback((tab: MobileTab) => {

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Download, FileText, RotateCcw, Copy, FileDown, Loader2, CheckCircle } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
+import { useToast } from './ToastProvider';
 
 interface ActionButtonsProps {
   onLoadSample: () => void;
@@ -35,12 +36,13 @@ function ActionButtons({ onLoadSample, onClear, onCopyHtml, htmlContent, markdow
   const [success, setSuccess] = useState<SuccessState>({
     copy: false
   });
+  
+  const { showToast } = useToast();
 
   // PDF download function with loading states and progress indication
   const handleDownloadPDF = async () => {
     if (!htmlContent.trim() || htmlContent.includes('Preview will appear here')) {
-      // TODO: Replace with toast notification
-      alert('Please add some markdown content first!');
+      showToast('Please add some markdown content first!', 'info');
       return;
     }
 
@@ -97,10 +99,11 @@ function ActionButtons({ onLoadSample, onClear, onCopyHtml, htmlContent, markdow
       // Add a small delay to show loading state
       await new Promise(resolve => setTimeout(resolve, 500));
       await html2pdf().set(opt).from(element).save();
+      showToast('PDF downloaded successfully!', 'success');
       
     } catch (error) {
       console.error('PDF generation failed:', error);
-      alert('Failed to generate PDF. Please try again.');
+      showToast('Failed to generate PDF. Please try again.', 'error');
     } finally {
       setLoading(prev => ({ ...prev, pdf: false }));
     }
@@ -109,7 +112,7 @@ function ActionButtons({ onLoadSample, onClear, onCopyHtml, htmlContent, markdow
   // Word document download function with loading state
   const handleDownloadWord = async () => {
     if (!htmlContent.trim() || htmlContent.includes('Preview will appear here')) {
-      alert('Please add some markdown content first!');
+      showToast('Please add some markdown content first!', 'info');
       return;
     }
 
@@ -172,9 +175,10 @@ function ActionButtons({ onLoadSample, onClear, onCopyHtml, htmlContent, markdow
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
+      showToast('Word document downloaded successfully!', 'success');
     } catch (error) {
       console.error('Word generation failed:', error);
-      alert('Failed to generate Word document. Please try again.');
+      showToast('Failed to generate Word document. Please try again.', 'error');
     } finally {
       setLoading(prev => ({ ...prev, word: false }));
     }
