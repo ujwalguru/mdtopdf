@@ -15,7 +15,7 @@ interface MarkdownEditorProps {
 const MarkdownEditor = forwardRef<HTMLTextAreaElement, MarkdownEditorProps>(
   ({ value, onChange, placeholder = "Type your markdown here...", className = "" }, ref) => {
     const [isTyping, setIsTyping] = useState(false);
-    const [lastSaved, setLastSaved] = useState<Date | null>(null);
+    const [lastEdit, setLastEdit] = useState<Date | null>(null);
     
     // Calculate statistics
     const stats = useMemo(() => {
@@ -28,30 +28,30 @@ const MarkdownEditor = forwardRef<HTMLTextAreaElement, MarkdownEditorProps>(
       return { characters, words, lines, paragraphs };
     }, [value]);
 
-    // Handle typing indicator
+    // Handle typing indicator and last edit timestamp
     useEffect(() => {
       if (value) {
         setIsTyping(true);
         const timeout = setTimeout(() => {
           setIsTyping(false);
-          setLastSaved(new Date());
+          setLastEdit(new Date());
         }, 1500);
         
         return () => clearTimeout(timeout);
       }
     }, [value]);
 
-    const formatLastSaved = (date: Date | null) => {
-      if (!date) return 'Never saved';
+    const formatLastEdit = (date: Date | null) => {
+      if (!date) return 'Start typing...';
       const now = new Date();
       const diff = now.getTime() - date.getTime();
       const seconds = Math.floor(diff / 1000);
       
-      if (seconds < 5) return 'Just saved';
-      if (seconds < 60) return `Saved ${seconds}s ago`;
+      if (seconds < 5) return 'Just edited';
+      if (seconds < 60) return `Edited ${seconds}s ago`;
       const minutes = Math.floor(seconds / 60);
-      if (minutes < 60) return `Saved ${minutes}m ago`;
-      return `Saved at ${date.toLocaleTimeString()}`;
+      if (minutes < 60) return `Edited ${minutes}m ago`;
+      return `Edited at ${date.toLocaleTimeString()}`;
     };
 
     return (
@@ -76,7 +76,7 @@ const MarkdownEditor = forwardRef<HTMLTextAreaElement, MarkdownEditorProps>(
                 <span className={`transition-colors duration-200 ${
                   isTyping ? 'text-primary' : 'text-muted-foreground'
                 }`}>
-                  {formatLastSaved(lastSaved)}
+                  {formatLastEdit(lastEdit)}
                 </span>
               </div>
             </div>
@@ -129,7 +129,7 @@ const MarkdownEditor = forwardRef<HTMLTextAreaElement, MarkdownEditorProps>(
                 <div className="w-1 h-1 bg-primary rounded-full animate-bounce" />
                 <div className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
                 <div className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                <span className="ml-1">Auto-saving</span>
+                <span className="ml-1">Typing</span>
               </div>
             </div>
           )}

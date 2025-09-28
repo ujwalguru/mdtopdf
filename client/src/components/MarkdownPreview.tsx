@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import MarkdownIt from 'markdown-it';
+import DOMPurify from 'dompurify';
 import { Eye, Sparkles, FileText } from 'lucide-react';
 
 interface MarkdownPreviewProps {
@@ -15,14 +16,40 @@ function MarkdownPreview({ markdown, className = "" }: MarkdownPreviewProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [contentKey, setContentKey] = useState(0);
 
-  // Initialize markdown-it with HTML and linkify enabled
+  // Initialize markdown-it with security hardening
   const md = useMemo(() => {
-    return new MarkdownIt({
-      html: true,        // Enable HTML tags in source
+    const markdownIt = new MarkdownIt({
+      html: false,       // Disable raw HTML for security
       linkify: true,     // Autoconvert URL-like text to links
       typographer: true, // Enable smart quotes and other typography
       breaks: true,      // Convert line breaks to <br>
     });
+    
+    // Override default link rendering to add security attributes
+    const defaultRender = markdownIt.renderer.rules.link_open || function(tokens, idx, options, env, renderer) {
+      return renderer.renderToken(tokens, idx, options);
+    };
+    
+    markdownIt.renderer.rules.link_open = function (tokens, idx, options, env, renderer) {
+      const aIndex = tokens[idx].attrIndex('target');
+      const relIndex = tokens[idx].attrIndex('rel');
+      
+      if (aIndex < 0) {
+        tokens[idx].attrPush(['target', '_blank']); // Add target="_blank"
+      } else {
+        tokens[idx].attrs![aIndex][1] = '_blank';
+      }
+      
+      if (relIndex < 0) {
+        tokens[idx].attrPush(['rel', 'noopener noreferrer']); // Add security attributes
+      } else {
+        tokens[idx].attrs![relIndex][1] = 'noopener noreferrer';
+      }
+      
+      return defaultRender(tokens, idx, options, env, renderer);
+    };
+    
+    return markdownIt;
   }, []);
 
   // Show updating indicator when markdown changes
@@ -38,9 +65,10 @@ function MarkdownPreview({ markdown, className = "" }: MarkdownPreviewProps) {
     }
   }, [markdown]);
 
-  // Render markdown to HTML
+  // Render markdown to HTML with sanitization for security
   const htmlContent = useMemo(() => {
     if (!markdown.trim()) {
+      // Safe static HTML for empty state
       return `
         <div class="flex flex-col items-center justify-center h-64 text-center animate-in fade-in duration-500">
           <div class="w-16 h-16 rounded-full bg-muted/20 flex items-center justify-center mb-4">
@@ -54,7 +82,22 @@ function MarkdownPreview({ markdown, className = "" }: MarkdownPreviewProps) {
         </div>
       `;
     }
-    return md.render(markdown);
+    
+    // Render markdown and sanitize the output to prevent XSS
+    const rendered = md.render(markdown);
+    return DOMPurify.sanitize(rendered, {
+      ALLOWED_TAGS: [
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'p', 'br', 'strong', 'em', 'u', 's', 'del',
+        'a', 'ul', 'ol', 'li', 'blockquote',
+        'code', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+        'hr', 'img', 'div', 'span'
+      ],
+      ALLOWED_ATTR: ['href', 'target', 'rel', 'alt', 'title', 'class'],
+      FORBID_CONTENTS: ['script', 'style'],
+      FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed'],
+      ADD_ATTR: ['target', 'rel']
+    });
   }, [markdown, md]);
 
   const wordCount = useMemo(() => {

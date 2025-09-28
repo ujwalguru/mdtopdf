@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Download, FileText, RotateCcw, Copy, FileDown, Loader2, CheckCircle } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
+import DOMPurify from 'dompurify';
 import { useToast } from './ToastProvider';
 
 interface ActionButtonsProps {
@@ -62,6 +63,20 @@ function ActionButtons({ onLoadSample, onClear, onCopyHtml, htmlContent, markdow
         }
       };
 
+      // Sanitize HTML content for PDF generation
+      const sanitizedHtml = DOMPurify.sanitize(htmlContent, {
+        ALLOWED_TAGS: [
+          'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+          'p', 'br', 'strong', 'em', 'u', 's', 'del',
+          'a', 'ul', 'ol', 'li', 'blockquote',
+          'code', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+          'hr', 'img', 'div', 'span'
+        ],
+        ALLOWED_ATTR: ['href', 'target', 'rel', 'alt', 'title', 'class'],
+        FORBID_CONTENTS: ['script', 'style'],
+        FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed']
+      });
+      
       // Create a clean HTML document for PDF generation
       const cleanHtml = `
         <html>
@@ -89,7 +104,7 @@ function ActionButtons({ onLoadSample, onClear, onCopyHtml, htmlContent, markdow
               a:hover { text-decoration: underline; }
             </style>
           </head>
-          <body>${htmlContent}</body>
+          <body>${sanitizedHtml}</body>
         </html>
       `;
 
@@ -121,6 +136,20 @@ function ActionButtons({ onLoadSample, onClear, onCopyHtml, htmlContent, markdow
     try {
       // Add a small delay to show loading state
       await new Promise(resolve => setTimeout(resolve, 300));
+      // Sanitize HTML content for Word export
+      const sanitizedHtml = DOMPurify.sanitize(htmlContent, {
+        ALLOWED_TAGS: [
+          'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+          'p', 'br', 'strong', 'em', 'u', 's', 'del',
+          'a', 'ul', 'ol', 'li', 'blockquote',
+          'code', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+          'hr', 'img', 'div', 'span'
+        ],
+        ALLOWED_ATTR: ['href', 'target', 'rel', 'alt', 'title', 'class'],
+        FORBID_CONTENTS: ['script', 'style'],
+        FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed']
+      });
+      
       // Create Word-compatible HTML with proper styling
       const wordHtml = `
         <html xmlns:o='urn:schemas-microsoft-com:office:office' 
@@ -159,7 +188,7 @@ function ActionButtons({ onLoadSample, onClear, onCopyHtml, htmlContent, markdow
             }
           </style>
         </head>
-        <body>${htmlContent}</body>
+        <body>${sanitizedHtml}</body>
         </html>
       `;
 
@@ -184,18 +213,39 @@ function ActionButtons({ onLoadSample, onClear, onCopyHtml, htmlContent, markdow
     }
   };
 
-  // Enhanced copy function with visual feedback
+  // Enhanced copy function with HTML sanitization
   const handleEnhancedCopyHtml = async () => {
+    if (!htmlContent.trim() || htmlContent.includes('Preview will appear here')) {
+      showToast('Please add some markdown content first!', 'info');
+      return;
+    }
+    
     setLoading(prev => ({ ...prev, copy: true }));
     
     try {
-      await onCopyHtml();
+      // Sanitize HTML before copying
+      const sanitizedHtml = DOMPurify.sanitize(htmlContent, {
+        ALLOWED_TAGS: [
+          'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+          'p', 'br', 'strong', 'em', 'u', 's', 'del',
+          'a', 'ul', 'ol', 'li', 'blockquote',
+          'code', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+          'hr', 'img', 'div', 'span'
+        ],
+        ALLOWED_ATTR: ['href', 'target', 'rel', 'alt', 'title', 'class'],
+        FORBID_CONTENTS: ['script', 'style'],
+        FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed']
+      });
+      
+      await navigator.clipboard.writeText(sanitizedHtml);
       setSuccess(prev => ({ ...prev, copy: true }));
+      showToast('HTML copied to clipboard!', 'success');
       setTimeout(() => {
         setSuccess(prev => ({ ...prev, copy: false }));
       }, 2000);
     } catch (error) {
       console.error('Copy failed:', error);
+      showToast('Failed to copy HTML. Please try again.', 'error');
     } finally {
       setLoading(prev => ({ ...prev, copy: false }));
     }
