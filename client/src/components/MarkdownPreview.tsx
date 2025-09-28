@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import MarkdownIt from 'markdown-it';
+import { Eye, Sparkles, FileText } from 'lucide-react';
 
 interface MarkdownPreviewProps {
   markdown: string;
@@ -7,48 +8,123 @@ interface MarkdownPreviewProps {
 }
 
 /**
- * Live preview component that renders Markdown to HTML
- * Uses markdown-it library with HTML and linkify enabled
+ * Enhanced Live preview component with smooth animations and better styling
+ * Features: Content fade transitions, word count in header, loading states
  */
 function MarkdownPreview({ markdown, className = "" }: MarkdownPreviewProps) {
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [contentKey, setContentKey] = useState(0);
+
   // Initialize markdown-it with HTML and linkify enabled
   const md = useMemo(() => {
     return new MarkdownIt({
       html: true,        // Enable HTML tags in source
       linkify: true,     // Autoconvert URL-like text to links
       typographer: true, // Enable smart quotes and other typography
+      breaks: true,      // Convert line breaks to <br>
     });
   }, []);
+
+  // Show updating indicator when markdown changes
+  useEffect(() => {
+    if (markdown.trim()) {
+      setIsUpdating(true);
+      const timeout = setTimeout(() => {
+        setIsUpdating(false);
+        setContentKey(prev => prev + 1);
+      }, 200);
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [markdown]);
 
   // Render markdown to HTML
   const htmlContent = useMemo(() => {
     if (!markdown.trim()) {
-      return '<p class="text-muted-foreground">Preview will appear here...</p>';
+      return `
+        <div class="flex flex-col items-center justify-center h-64 text-center animate-in fade-in duration-500">
+          <div class="w-16 h-16 rounded-full bg-muted/20 flex items-center justify-center mb-4">
+            <svg class="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+          </div>
+          <h3 class="text-lg font-medium text-muted-foreground mb-2">Preview will appear here</h3>
+          <p class="text-sm text-muted-foreground max-w-sm">Start typing in the editor to see your markdown rendered in real-time with beautiful formatting.</p>
+        </div>
+      `;
     }
     return md.render(markdown);
   }, [markdown, md]);
 
+  const wordCount = useMemo(() => {
+    if (!markdown.trim()) return 0;
+    return markdown.trim().split(/\s+/).length;
+  }, [markdown]);
+
+  const estimatedReadTime = Math.max(1, Math.ceil(wordCount / 200)); // Average reading speed
+
   return (
-    <div className="h-full flex flex-col">
-      <div className="p-3 border-b border-border">
-        <h2 className="text-sm font-medium text-foreground">Live Preview</h2>
+    <div className="h-full flex flex-col animate-in slide-in-from-right duration-300">
+      {/* Enhanced Header */}
+      <div className="p-3 border-b border-border bg-card/30">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Eye className="w-4 h-4 text-primary" />
+            <h2 className="text-sm font-medium text-foreground">Live Preview</h2>
+            {isUpdating && (
+              <div className="flex items-center gap-1 text-xs text-primary animate-pulse">
+                <Sparkles className="w-3 h-3" />
+                <span>Updating...</span>
+              </div>
+            )}
+          </div>
+          
+          {markdown.trim() && (
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <FileText className="w-3 h-3" />
+                <span>{wordCount} words</span>
+              </div>
+              <div className="text-xs opacity-75">
+                ~{estimatedReadTime} min read
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-      <div className="flex-1 overflow-auto bg-card">
+      
+      {/* Preview Content */}
+      <div className="flex-1 overflow-auto bg-card relative">
         <div 
+          key={contentKey}
           className={`
             p-6 prose prose-gray dark:prose-invert max-w-none
-            prose-headings:text-card-foreground
-            prose-p:text-card-foreground 
-            prose-strong:text-card-foreground
-            prose-code:text-card-foreground
-            prose-pre:bg-muted prose-pre:text-muted-foreground
-            prose-blockquote:text-card-foreground prose-blockquote:border-l-primary
-            prose-a:text-primary hover:prose-a:text-primary/80
+            prose-headings:text-card-foreground prose-headings:scroll-mt-8
+            prose-p:text-card-foreground prose-p:leading-relaxed
+            prose-strong:text-card-foreground prose-strong:font-semibold
+            prose-em:text-card-foreground/90
+            prose-code:text-primary prose-code:bg-primary/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-sm
+            prose-pre:bg-muted prose-pre:text-muted-foreground prose-pre:border prose-pre:border-border prose-pre:rounded-lg
+            prose-blockquote:text-card-foreground prose-blockquote:border-l-primary prose-blockquote:border-l-4 prose-blockquote:bg-primary/5 prose-blockquote:rounded-r-md
+            prose-a:text-primary prose-a:no-underline hover:prose-a:text-primary/80 hover:prose-a:underline prose-a:transition-all prose-a:duration-200
+            prose-ul:text-card-foreground prose-ol:text-card-foreground
+            prose-li:text-card-foreground prose-li:my-1
+            prose-table:text-card-foreground prose-thead:border-border prose-tr:border-border
+            prose-th:bg-muted/50 prose-th:px-4 prose-th:py-2
+            prose-td:px-4 prose-td:py-2
+            prose-hr:border-border prose-hr:my-8
+            animate-in fade-in duration-300
             ${className}
           `}
           dangerouslySetInnerHTML={{ __html: htmlContent }}
           data-testid="content-markdown-preview"
         />
+        
+        {/* Subtle scroll indicator */}
+        {markdown.trim() && (
+          <div className="absolute top-0 right-0 w-1 bg-gradient-to-b from-primary/20 to-transparent h-full pointer-events-none" />
+        )}
       </div>
     </div>
   );

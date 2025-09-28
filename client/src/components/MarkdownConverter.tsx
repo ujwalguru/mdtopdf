@@ -1,5 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import MarkdownIt from 'markdown-it';
+import { PanelLeftClose, PanelLeftOpen, Smartphone, Monitor } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import MarkdownEditor from './MarkdownEditor';
 import MarkdownPreview from './MarkdownPreview';
 import ActionButtons from './ActionButtons';
@@ -67,12 +69,17 @@ console.log(greetUser('Developer'));
 
 *Made with ❤️ for productivity and clean document creation.*`;
 
+type MobileTab = 'editor' | 'preview';
+
 /**
- * Main application component that combines the markdown editor, live preview, and action buttons
- * Provides a responsive two-column layout that stacks on mobile devices
+ * Enhanced main application component with smooth animations and improved mobile UX
+ * Features: Animated tab switching, responsive layout, swipe gestures, better visual feedback
  */
 function MarkdownConverter() {
   const [markdown, setMarkdown] = useState('');
+  const [activeTab, setActiveTab] = useState<MobileTab>('editor');
+  const [isEditorCollapsed, setIsEditorCollapsed] = useState(false);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
   // Initialize markdown-it for HTML generation
   const md = useMemo(() => {
@@ -101,8 +108,8 @@ function MarkdownConverter() {
     setMarkdown('');
   };
 
-  // Copy HTML to clipboard
-  const handleCopyHtml = async () => {
+  // Enhanced copy function with better error handling
+  const handleCopyHtml = useCallback(async () => {
     if (!htmlContent.trim()) {
       alert('Please add some markdown content first!');
       return;
@@ -110,15 +117,6 @@ function MarkdownConverter() {
 
     try {
       await navigator.clipboard.writeText(htmlContent);
-      // Show temporary feedback (you could enhance this with a toast notification)
-      const button = document.querySelector('[data-testid="button-copy-html"]');
-      const originalText = button?.textContent || 'Copy HTML';
-      if (button) {
-        button.textContent = 'Copied!';
-        setTimeout(() => {
-          button.textContent = originalText;
-        }, 2000);
-      }
     } catch (error) {
       console.error('Failed to copy HTML:', error);
       // Fallback for browsers that don't support clipboard API
@@ -134,19 +132,80 @@ function MarkdownConverter() {
       }
       document.body.removeChild(textArea);
     }
-  };
+  }, [htmlContent]);
+
+  // Enhanced tab switching with animations
+  const handleTabSwitch = useCallback((tab: MobileTab) => {
+    setActiveTab(tab);
+  }, []);
+
+  // Touch handlers for swipe gestures on mobile
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX);
+  }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (!touchStartX) return;
+    
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX - touchEndX;
+    
+    // Swipe threshold (minimum distance for swipe)
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) {
+        // Swiped left - show preview
+        setActiveTab('preview');
+      } else {
+        // Swiped right - show editor
+        setActiveTab('editor');
+      }
+    }
+    
+    setTouchStartX(null);
+  }, [touchStartX]);
+
+  // Auto-switch to preview when content is added (mobile only)
+  useEffect(() => {
+    if (markdown.length > 50 && activeTab === 'editor' && window.innerWidth < 1024) {
+      // Auto-suggest switching to preview after user types some content
+      const timeout = setTimeout(() => {
+        if (document.hidden === false) { // Only if tab is active
+          setActiveTab('preview');
+        }
+      }, 3000);
+      return () => clearTimeout(timeout);
+    }
+  }, [markdown, activeTab]);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
-      <header className="border-b border-border bg-background">
+    <div className="min-h-screen bg-background text-foreground animate-in fade-in duration-500">
+      {/* Enhanced Header with animations */}
+      <header className="border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-50 animate-in slide-in-from-top duration-300">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-foreground">
-            Markdown → PDF / Word
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Convert your markdown to professional documents
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                <span className="text-primary animate-pulse">→</span>
+                Markdown → PDF / Word
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Convert your markdown to professional documents
+              </p>
+            </div>
+            
+            {/* Desktop Layout Toggle */}
+            <div className="hidden lg:flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditorCollapsed(!isEditorCollapsed)}
+                className="flex items-center gap-2"
+              >
+                {isEditorCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+                {isEditorCollapsed ? 'Show Editor' : 'Focus Preview'}
+              </Button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -159,67 +218,122 @@ function MarkdownConverter() {
         markdownContent={markdown}
       />
 
-      {/* Main Content - Responsive Layout */}
+      {/* Main Content - Enhanced Responsive Layout */}
       <main className="flex-1">
         <div className="max-w-7xl mx-auto h-[calc(100vh-180px)]">
-          {/* Desktop: Two columns side by side */}
-          <div className="hidden lg:grid lg:grid-cols-2 h-full">
-            <div className="border-r border-border">
+          {/* Desktop: Enhanced two columns with collapse feature */}
+          <div className="hidden lg:grid h-full transition-all duration-300" style={{
+            gridTemplateColumns: isEditorCollapsed ? '0fr 1fr' : '1fr 1fr'
+          }}>
+            <div className={`border-r border-border overflow-hidden transition-all duration-300 ${
+              isEditorCollapsed ? 'opacity-0' : 'opacity-100'
+            }`}>
               <MarkdownEditor
                 value={markdown}
                 onChange={setMarkdown}
                 placeholder="Type your markdown here..."
               />
             </div>
-            <div>
+            <div className="relative">
               <MarkdownPreview markdown={markdown} />
+              
+              {/* Overlay toggle button when collapsed */}
+              {isEditorCollapsed && (
+                <Button
+                  onClick={() => setIsEditorCollapsed(false)}
+                  className="absolute top-4 left-4 z-10 animate-in fade-in duration-200"
+                  size="sm"
+                  variant="outline"
+                >
+                  <PanelLeftOpen className="w-4 h-4 mr-2" />
+                  Show Editor
+                </Button>
+              )}
             </div>
           </div>
 
-          {/* Mobile: Stacked layout with tabs-like switching */}
-          <div className="lg:hidden h-full">
-            <div className="flex border-b border-border">
+          {/* Mobile: Enhanced layout with smooth animations and swipe support */}
+          <div 
+            className="lg:hidden h-full"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            {/* Enhanced Tab Bar */}
+            <div className="flex border-b border-border bg-card/50 backdrop-blur-sm relative">
               <button 
-                className="flex-1 p-3 text-sm font-medium border-r border-border hover-elevate"
+                className={`flex-1 p-3 text-sm font-medium border-r border-border transition-all duration-300 relative ${
+                  activeTab === 'editor' 
+                    ? 'text-primary bg-primary/10' 
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                }`}
                 data-testid="tab-editor"
-                onClick={() => {
-                  document.getElementById('mobile-editor')?.classList.remove('hidden');
-                  document.getElementById('mobile-preview')?.classList.add('hidden');
-                }}
+                onClick={() => handleTabSwitch('editor')}
               >
-                Editor
+                <div className="flex items-center justify-center gap-2">
+                  <Monitor className="w-4 h-4" />
+                  Editor
+                  {markdown.length > 0 && (
+                    <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+                  )}
+                </div>
+                {activeTab === 'editor' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary animate-in slide-in-from-left duration-200" />
+                )}
               </button>
+              
               <button 
-                className="flex-1 p-3 text-sm font-medium hover-elevate"
+                className={`flex-1 p-3 text-sm font-medium transition-all duration-300 relative ${
+                  activeTab === 'preview' 
+                    ? 'text-primary bg-primary/10' 
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                }`}
                 data-testid="tab-preview"
-                onClick={() => {
-                  document.getElementById('mobile-editor')?.classList.add('hidden');
-                  document.getElementById('mobile-preview')?.classList.remove('hidden');
+                onClick={() => handleTabSwitch('preview')}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <Smartphone className="w-4 h-4" />
+                  Preview
+                  {htmlContent.length > 0 && (
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  )}
+                </div>
+                {activeTab === 'preview' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary animate-in slide-in-from-right duration-200" />
+                )}
+              </button>
+              
+              {/* Swipe hint indicator */}
+              <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-8 h-0.5 bg-muted-foreground/30 rounded-full" />
+            </div>
+            
+            {/* Content with smooth transitions */}
+            <div className="relative h-[calc(100%-48px)] overflow-hidden">
+              <div 
+                className="flex h-full transition-transform duration-300 ease-out"
+                style={{
+                  transform: `translateX(${activeTab === 'editor' ? '0%' : '-100%'})`
                 }}
               >
-                Preview
-              </button>
-            </div>
-            
-            <div id="mobile-editor" className="h-[calc(100%-48px)]">
-              <MarkdownEditor
-                value={markdown}
-                onChange={setMarkdown}
-                placeholder="Type your markdown here..."
-              />
-            </div>
-            
-            <div id="mobile-preview" className="h-[calc(100%-48px)] hidden">
-              <MarkdownPreview markdown={markdown} />
+                <div className="w-full flex-shrink-0">
+                  <MarkdownEditor
+                    value={markdown}
+                    onChange={setMarkdown}
+                    placeholder="Type your markdown here..."
+                  />
+                </div>
+                <div className="w-full flex-shrink-0">
+                  <MarkdownPreview markdown={markdown} />
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-border bg-background">
+      {/* Enhanced Footer */}
+      <footer className="border-t border-border bg-background/95 backdrop-blur-sm animate-in slide-in-from-bottom duration-300">
         <div className="max-w-7xl mx-auto px-4 py-3">
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="text-center text-sm text-muted-foreground hover:text-foreground transition-colors duration-200">
             made by Ujwal Guru
           </p>
         </div>

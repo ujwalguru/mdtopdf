@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Download, FileText, RotateCcw, Copy, FileDown } from 'lucide-react';
+import { Download, FileText, RotateCcw, Copy, FileDown, Loader2, CheckCircle } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 
 interface ActionButtonsProps {
@@ -10,19 +11,41 @@ interface ActionButtonsProps {
   markdownContent: string;
 }
 
+type LoadingState = {
+  pdf: boolean;
+  word: boolean;
+  copy: boolean;
+};
+
+type SuccessState = {
+  copy: boolean;
+};
+
 /**
- * Action buttons toolbar with PDF/Word download, sample load, clear, and copy HTML functionality
- * Includes comments for easy customization of colors, PDF options, and filenames
+ * Enhanced Action buttons toolbar with loading states, success animations, and improved UX
+ * Features: Loading spinners, success indicators, smooth transitions
  */
 function ActionButtons({ onLoadSample, onClear, onCopyHtml, htmlContent, markdownContent }: ActionButtonsProps) {
+  const [loading, setLoading] = useState<LoadingState>({
+    pdf: false,
+    word: false,
+    copy: false
+  });
+  
+  const [success, setSuccess] = useState<SuccessState>({
+    copy: false
+  });
 
-  // PDF download function using html2pdf.js
+  // PDF download function with loading states and progress indication
   const handleDownloadPDF = async () => {
     if (!htmlContent.trim() || htmlContent.includes('Preview will appear here')) {
+      // TODO: Replace with toast notification
       alert('Please add some markdown content first!');
       return;
     }
 
+    setLoading(prev => ({ ...prev, pdf: true }));
+    
     try {
       // PDF configuration options - easily customizable
       const opt = {
@@ -70,21 +93,31 @@ function ActionButtons({ onLoadSample, onClear, onCopyHtml, htmlContent, markdow
 
       const element = document.createElement('div');
       element.innerHTML = cleanHtml;
+      
+      // Add a small delay to show loading state
+      await new Promise(resolve => setTimeout(resolve, 500));
       await html2pdf().set(opt).from(element).save();
+      
     } catch (error) {
       console.error('PDF generation failed:', error);
       alert('Failed to generate PDF. Please try again.');
+    } finally {
+      setLoading(prev => ({ ...prev, pdf: false }));
     }
   };
 
-  // Word document download function
-  const handleDownloadWord = () => {
+  // Word document download function with loading state
+  const handleDownloadWord = async () => {
     if (!htmlContent.trim() || htmlContent.includes('Preview will appear here')) {
       alert('Please add some markdown content first!');
       return;
     }
 
+    setLoading(prev => ({ ...prev, word: true }));
+    
     try {
+      // Add a small delay to show loading state
+      await new Promise(resolve => setTimeout(resolve, 300));
       // Create Word-compatible HTML with proper styling
       const wordHtml = `
         <html xmlns:o='urn:schemas-microsoft-com:office:office' 
@@ -142,59 +175,104 @@ function ActionButtons({ onLoadSample, onClear, onCopyHtml, htmlContent, markdow
     } catch (error) {
       console.error('Word generation failed:', error);
       alert('Failed to generate Word document. Please try again.');
+    } finally {
+      setLoading(prev => ({ ...prev, word: false }));
+    }
+  };
+
+  // Enhanced copy function with visual feedback
+  const handleEnhancedCopyHtml = async () => {
+    setLoading(prev => ({ ...prev, copy: true }));
+    
+    try {
+      await onCopyHtml();
+      setSuccess(prev => ({ ...prev, copy: true }));
+      setTimeout(() => {
+        setSuccess(prev => ({ ...prev, copy: false }));
+      }, 2000);
+    } catch (error) {
+      console.error('Copy failed:', error);
+    } finally {
+      setLoading(prev => ({ ...prev, copy: false }));
     }
   };
 
   return (
-    <div className="flex flex-wrap gap-2 p-4 border-b border-border bg-background">
-      <Button 
-        onClick={handleDownloadPDF}
-        className="flex items-center gap-2"
-        data-testid="button-download-pdf"
-      >
-        <Download className="w-4 h-4" />
-        Download PDF
-      </Button>
+    <div className="border-b border-border bg-background/95 backdrop-blur-sm animate-in slide-in-from-top duration-300">
+      <div className="flex flex-wrap gap-2 p-4">
+        <Button 
+          onClick={handleDownloadPDF}
+          disabled={loading.pdf}
+          className="flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
+          data-testid="button-download-pdf"
+        >
+          {loading.pdf ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Download className="w-4 h-4" />
+          )}
+          {loading.pdf ? 'Generating PDF...' : 'Download PDF'}
+        </Button>
+        
+        <Button 
+          variant="outline"
+          onClick={handleDownloadWord}
+          disabled={loading.word}
+          className="flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
+          data-testid="button-download-word"
+        >
+          {loading.word ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <FileText className="w-4 h-4" />
+          )}
+          {loading.word ? 'Generating...' : 'Download Word (.doc)'}
+        </Button>
+        
+        <Button 
+          variant="outline"
+          onClick={onLoadSample}
+          className="flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95 hover:text-primary"
+          data-testid="button-load-sample"
+        >
+          <FileDown className="w-4 h-4 transition-transform duration-200 hover:translate-y-0.5" />
+          Load Sample
+        </Button>
+        
+        <Button 
+          variant="outline"
+          onClick={onClear}
+          className="flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95 hover:text-destructive"
+          data-testid="button-clear"
+        >
+          <RotateCcw className="w-4 h-4 transition-transform duration-200 hover:rotate-180" />
+          Clear
+        </Button>
+        
+        <Button 
+          variant="outline"
+          onClick={handleEnhancedCopyHtml}
+          disabled={loading.copy}
+          className="flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
+          data-testid="button-copy-html"
+        >
+          {loading.copy ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : success.copy ? (
+            <CheckCircle className="w-4 h-4 text-green-500" />
+          ) : (
+            <Copy className="w-4 h-4" />
+          )}
+          {loading.copy ? 'Copying...' : success.copy ? 'Copied!' : 'Copy HTML'}
+        </Button>
+      </div>
       
-      <Button 
-        variant="outline"
-        onClick={handleDownloadWord}
-        className="flex items-center gap-2"
-        data-testid="button-download-word"
-      >
-        <FileText className="w-4 h-4" />
-        Download Word (.doc)
-      </Button>
-      
-      <Button 
-        variant="outline"
-        onClick={onLoadSample}
-        className="flex items-center gap-2"
-        data-testid="button-load-sample"
-      >
-        <FileDown className="w-4 h-4" />
-        Load Sample
-      </Button>
-      
-      <Button 
-        variant="outline"
-        onClick={onClear}
-        className="flex items-center gap-2"
-        data-testid="button-clear"
-      >
-        <RotateCcw className="w-4 h-4" />
-        Clear
-      </Button>
-      
-      <Button 
-        variant="outline"
-        onClick={onCopyHtml}
-        className="flex items-center gap-2"
-        data-testid="button-copy-html"
-      >
-        <Copy className="w-4 h-4" />
-        Copy HTML
-      </Button>
+      {/* Progress indicator when any action is loading */}
+      {(loading.pdf || loading.word || loading.copy) && (
+        <div className="h-1 bg-muted overflow-hidden">
+          <div className="h-full bg-primary animate-pulse" />
+        </div>
+      )}
     </div>
   );
 }
